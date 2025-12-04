@@ -1,0 +1,11 @@
+# Render Blueprint
+services:
+  - type: web
+    name: lead-generator
+    env: docker
+    dockerfilePath: ./Dockerfile
+    plan: free
+    healthCheckPath: /api
+    envVars:
+      - key: DISPLAY
+        value: ":99"

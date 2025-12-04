@@ -1,0 +1,632 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lead Generator</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        :root {
+            --bg-primary: #0d1117; --bg-secondary: #161b22; --bg-tertiary: #21262d;
+            --border-color: #30363d; --text-primary: #e6edf3; --text-secondary: #8b949e; --text-muted: #6e7681;
+            --accent-blue: #2f81f7; --accent-green: #3fb950; --accent-red: #f85149; --accent-yellow: #d29922;
+        }
+        body { font-family: 'Inter', sans-serif; background: var(--bg-primary); color: var(--text-primary); min-height: 100vh; }
+        .app { display: flex; min-height: 100vh; }
+        .sidebar { width: 240px; background: var(--bg-secondary); border-right: 1px solid var(--border-color); display: flex; flex-direction: column; position: fixed; height: 100vh; z-index: 100; transition: transform 0.3s; }
+        .sidebar-header { height: 60px; display: flex; align-items: center; padding: 0 20px; border-bottom: 1px solid var(--border-color); }
+        .logo { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 18px; }
+        .logo-icon { width: 32px; height: 32px; background: var(--accent-blue); border-radius: 8px; display: flex; align-items: center; justify-content: center; }
+        .nav-section { padding: 20px 12px; }
+        .nav-label { font-size: 11px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; padding: 0 8px; margin-bottom: 8px; }
+        .nav-item { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 8px; color: var(--text-secondary); text-decoration: none; font-size: 14px; font-weight: 500; cursor: pointer; margin-bottom: 4px; }
+        .nav-item:hover { background: var(--bg-tertiary); color: var(--text-primary); }
+        .nav-item.active { background: var(--accent-blue); color: #fff; }
+        .nav-item svg { width: 18px; height: 18px; flex-shrink: 0; }
+        .sidebar-footer { margin-top: auto; padding: 20px; border-top: 1px solid var(--border-color); }
+        .user-info { display: flex; align-items: center; gap: 10px; }
+        .user-avatar { width: 36px; height: 36px; background: var(--accent-green); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 600; }
+        .main { flex: 1; margin-left: 240px; }
+        .topbar { height: 60px; border-bottom: 1px solid var(--border-color); display: flex; align-items: center; justify-content: space-between; padding: 0 24px; background: var(--bg-secondary); position: sticky; top: 0; z-index: 50; }
+        .topbar-title { font-size: 14px; font-weight: 500; }
+        .mobile-menu-btn { display: none; background: none; border: none; color: var(--text-primary); cursor: pointer; padding: 8px; }
+        .content { padding: 32px 24px; max-width: 1400px; }
+        .page-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 24px; flex-wrap: wrap; gap: 16px; }
+        .page-title { font-size: 24px; font-weight: 700; margin-bottom: 4px; }
+        .page-subtitle { color: var(--text-secondary); font-size: 14px; }
+        .btn { display: inline-flex; align-items: center; gap: 8px; padding: 10px 16px; border-radius: 8px; font-size: 14px; font-weight: 500; border: none; cursor: pointer; text-decoration: none; }
+        .btn-primary { background: var(--accent-blue); color: #fff; }
+        .btn-secondary { background: var(--bg-tertiary); color: var(--text-primary); border: 1px solid var(--border-color); }
+        .btn-success { background: var(--accent-green); color: #fff; }
+        .btn-sm { padding: 6px 12px; font-size: 12px; }
+        .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        .card { background: var(--bg-secondary); border: 1px solid var(--border-color); border-radius: 12px; padding: 24px; margin-bottom: 20px; }
+        .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 16px; margin-bottom: 24px; }
+        .stat-card { background: var(--bg-secondary); border: 1px solid var(--border-color); border-radius: 12px; padding: 20px; }
+        .stat-value { font-size: 28px; font-weight: 700; margin-bottom: 4px; }
+        .stat-label { font-size: 13px; color: var(--text-secondary); }
+        .stat-value.blue { color: var(--accent-blue); }
+        .stat-value.green { color: var(--accent-green); }
+        .stat-value.red { color: var(--accent-red); }
+        .stat-value.yellow { color: var(--accent-yellow); }
+        .scraper-input-group { display: flex; gap: 12px; margin-bottom: 20px; }
+        .scraper-input { flex: 1; padding: 14px 16px; background: var(--bg-tertiary); border: 1px solid var(--border-color); border-radius: 8px; color: var(--text-primary); font-size: 14px; }
+        .scraper-input:focus { outline: none; border-color: var(--accent-blue); }
+        .progress-section { margin-bottom: 24px; }
+        .progress-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+        .progress-bar-container { height: 8px; background: var(--bg-tertiary); border-radius: 4px; overflow: hidden; margin-bottom: 8px; }
+        .progress-bar { height: 100%; background: linear-gradient(90deg, var(--accent-blue), var(--accent-green)); border-radius: 4px; transition: width 0.3s; }
+        .progress-stats { display: flex; gap: 24px; font-size: 13px; color: var(--text-secondary); flex-wrap: wrap; }
+        .logs-container { background: var(--bg-primary); border: 1px solid var(--border-color); border-radius: 8px; padding: 16px; height: 250px; overflow-y: auto; font-family: monospace; font-size: 12px; line-height: 1.8; }
+        .log-entry { margin-bottom: 4px; }
+        .log-time { color: var(--text-muted); }
+        .log-info { color: var(--accent-blue); }
+        .log-success { color: var(--accent-green); }
+        .log-error { color: var(--accent-red); }
+        .status-indicator { display: flex; align-items: center; gap: 8px; padding: 12px 16px; background: var(--bg-tertiary); border-radius: 8px; margin-bottom: 16px; }
+        .status-dot { width: 8px; height: 8px; border-radius: 50%; }
+        .status-dot.idle { background: var(--text-muted); }
+        .status-dot.running { background: var(--accent-yellow); animation: pulse 1.5s infinite; }
+        .status-dot.completed { background: var(--accent-green); }
+        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+        .table-container { background: var(--bg-secondary); border: 1px solid var(--border-color); border-radius: 12px; overflow: hidden; }
+        .table-header { display: flex; justify-content: space-between; align-items: center; padding: 16px 20px; border-bottom: 1px solid var(--border-color); flex-wrap: wrap; gap: 12px; }
+        .table-scroll { overflow-x: auto; }
+        table { width: 100%; border-collapse: collapse; min-width: 600px; }
+        th { text-align: left; padding: 12px 16px; font-size: 12px; font-weight: 600; color: var(--text-secondary); text-transform: uppercase; background: var(--bg-tertiary); }
+        td { padding: 14px 16px; font-size: 14px; border-bottom: 1px solid var(--border-color); }
+        tr:hover td { background: rgba(47, 129, 247, 0.05); }
+        .status-badge { display: inline-flex; padding: 4px 10px; border-radius: 20px; font-size: 12px; font-weight: 500; }
+        .status-yes { background: rgba(63, 185, 80, 0.15); color: var(--accent-green); }
+        .status-no { background: rgba(248, 81, 73, 0.15); color: var(--accent-red); }
+        .status-pending { background: rgba(210, 153, 34, 0.15); color: var(--accent-yellow); }
+        .filters-bar { display: flex; align-items: center; gap: 12px; margin-bottom: 20px; flex-wrap: wrap; }
+        .search-box { flex: 1; min-width: 200px; max-width: 400px; position: relative; }
+        .search-box input { width: 100%; padding: 10px 12px 10px 40px; background: var(--bg-tertiary); border: 1px solid var(--border-color); border-radius: 8px; color: var(--text-primary); font-size: 14px; }
+        .search-box svg { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); width: 16px; height: 16px; color: var(--text-muted); }
+        .filter-tabs { display: flex; gap: 4px; }
+        .filter-tab { padding: 8px 14px; border-radius: 6px; font-size: 13px; font-weight: 500; color: var(--text-secondary); background: transparent; border: none; cursor: pointer; }
+        .filter-tab:hover { background: var(--bg-tertiary); }
+        .filter-tab.active { background: var(--accent-blue); color: #fff; }
+        .pagination { display: flex; justify-content: space-between; align-items: center; padding: 16px 20px; border-top: 1px solid var(--border-color); flex-wrap: wrap; gap: 12px; }
+        .page-btn { padding: 6px 12px; border-radius: 6px; font-size: 13px; background: var(--bg-tertiary); border: 1px solid var(--border-color); color: var(--text-secondary); cursor: pointer; }
+        .page-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+        .empty-state { text-align: center; padding: 60px 20px; color: var(--text-secondary); }
+        .history-item { display: flex; justify-content: space-between; align-items: center; padding: 16px; border-bottom: 1px solid var(--border-color); }
+        .history-item:last-child { border-bottom: none; }
+        .history-info { flex: 1; }
+        .history-query { font-weight: 500; margin-bottom: 4px; }
+        .history-meta { font-size: 12px; color: var(--text-muted); }
+        .history-actions { display: flex; gap: 8px; }
+        .sidebar-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 99; }
+        @media (max-width: 768px) {
+            .sidebar { transform: translateX(-100%); }
+            .sidebar.open { transform: translateX(0); }
+            .sidebar-overlay.open { display: block; }
+            .main { margin-left: 0; }
+            .mobile-menu-btn { display: block; }
+            .content { padding: 20px 16px; }
+            .scraper-input-group { flex-direction: column; }
+            .search-box { max-width: none; }
+        }
+    </style>
+</head>
+<body>
+<div class="app">
+    <aside class="sidebar" id="sidebar">
+        <div class="sidebar-header"><div class="logo"><div class="logo-icon">🎯</div><span>LeadGen</span></div></div>
+        <div class="nav-section">
+            <div class="nav-label">Navigation</div>
+            <a class="nav-item active" id="nav-dashboard" href="#" onclick="showSection('dashboard'); return false;">
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/></svg>
+                Dashboard
+            </a>
+            <a class="nav-item" id="nav-leads" href="#" onclick="showSection('leads'); return false;">
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+                Leads
+            </a>
+            <a class="nav-item" id="nav-history" href="#" onclick="showSection('history'); return false;">
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                History
+            </a>
+            <a class="nav-item" id="nav-docs" href="#" onclick="showSection('docs'); return false;">
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+                API Docs
+                History
+            </a>
+        </div>
+        <div class="sidebar-footer"><div class="user-info"><div class="user-avatar">A</div><span>Akshat</span></div></div>
+    </aside>
+    <main class="main">
+        <div class="topbar">
+            <button class="mobile-menu-btn" onclick="toggleSidebar()"><svg width="24" height="24" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/></svg></button>
+            <div class="topbar-title" id="topbarTitle">Dashboard</div>
+            <div style="width:24px"></div>
+        </div>
+        <div class="content" id="content"></div>
+    </main>
+</div>
+<div class="sidebar-overlay" id="sidebarOverlay" onclick="toggleSidebar()"></div>
+</body>
+</html>
+
+<script>
+let currentJobId = null, pollInterval = null, allLeads = [], filteredLeads = [], currentPage = 1, currentFilter = 'all', startTime = null, timerInterval = null, lastLogCount = 0, jobHistory = [];
+const perPage = 15;
+
+document.addEventListener('DOMContentLoaded', function() {
+    showSection('dashboard');
+});
+
+function toggleSidebar() {
+    document.getElementById('sidebar').classList.toggle('open');
+    document.getElementById('sidebarOverlay').classList.toggle('open');
+}
+
+function setActiveNav(section) {
+    document.querySelectorAll('.nav-item').forEach(i => i.classList.remove('active'));
+    const navItem = document.getElementById('nav-' + section);
+    if (navItem) navItem.classList.add('active');
+}
+
+function showSection(section) {
+    setActiveNav(section);
+    document.getElementById('sidebar').classList.remove('open');
+    document.getElementById('sidebarOverlay').classList.remove('open');
+    
+    const titles = { dashboard: 'Dashboard', leads: 'Lead Management', history: 'Job History', docs: 'API Documentation' };
+    document.getElementById('topbarTitle').textContent = titles[section] || 'Dashboard';
+    
+    if (section === 'leads') renderLeadsSection();
+    else if (section === 'history') renderHistorySection();
+    else if (section === 'docs') renderDocsSection();
+    else renderDashboard();
+}
+
+function renderDashboard() {
+    const noWebsite = allLeads.filter(l => l.has_website === 'No').length;
+    document.getElementById('content').innerHTML = `
+        <div class="page-header">
+            <div><h1 class="page-title">Dashboard</h1><p class="page-subtitle">Scrape Google Maps for business leads</p></div>
+            ${allLeads.length > 0 ? `<button class="btn btn-secondary" onclick="showSection('leads')">View Leads (${allLeads.length})</button>` : ''}
+        </div>
+        <div class="stats-grid">
+            <div class="stat-card"><div class="stat-value blue">${allLeads.length}</div><div class="stat-label">Total Leads</div></div>
+            <div class="stat-card"><div class="stat-value red">${noWebsite}</div><div class="stat-label">🔥 No Website</div></div>
+            <div class="stat-card"><div class="stat-value green">${allLeads.length - noWebsite}</div><div class="stat-label">Has Website</div></div>
+            <div class="stat-card"><div class="stat-value yellow" id="timerDisplay">00:00</div><div class="stat-label">Time Elapsed</div></div>
+        </div>
+        <div class="card">
+            <h3 style="margin-bottom:16px">🔍 Start New Scrape</h3>
+            <div class="scraper-input-group">
+                <input type="text" class="scraper-input" id="query" placeholder="Enter search query (e.g., plumbers in Chicago)">
+                <button class="btn btn-primary" id="startBtn" onclick="startScraping()">Start Scraping</button>
+            </div>
+            <div class="status-indicator"><div class="status-dot idle" id="statusDot"></div><span id="statusText">Ready to scrape</span></div>
+            <div class="progress-section" id="progressSection" style="display:none">
+                <div class="progress-header"><span>Progress</span><span id="etaDisplay" style="font-weight:700;color:var(--accent-blue)">--:--</span></div>
+                <div class="progress-bar-container"><div class="progress-bar" id="progressBar" style="width:0%"></div></div>
+                <div class="progress-stats">
+                    <span>Phase: <strong id="phaseText">Starting</strong></span>
+                    <span>Extracted: <strong id="extractedCount">0</strong> / <strong id="totalCount">0</strong></span>
+                    <span>ETA: <strong id="etaText">Calculating...</strong></span>
+                </div>
+            </div>
+        </div>
+        <div class="card">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:8px">
+                <h3>📝 Live Activity</h3>
+                <div style="display:flex;gap:8px" id="actionBtns">
+                    <button class="btn btn-success" id="downloadBtn" onclick="downloadCSV()" style="display:none">Download CSV</button>
+                    <button class="btn btn-primary" id="viewLeadsBtn" onclick="showSection('leads')" style="display:none">View Leads</button>
+                </div>
+            </div>
+            <div class="logs-container" id="logs"><div class="log-entry"><span class="log-time">--:--:--</span> <span class="log-info">Waiting for scraping to start...</span></div></div>
+        </div>`;
+}
+
+function updateStatus(status, text) {
+    const dot = document.getElementById('statusDot'), txt = document.getElementById('statusText');
+    if (dot) dot.className = 'status-dot ' + status;
+    if (txt) txt.textContent = text;
+}
+
+function log(msg, type = 'info') {
+    const logs = document.getElementById('logs');
+    if (logs) { logs.innerHTML += `<div class="log-entry"><span class="log-time">${new Date().toLocaleTimeString()}</span> <span class="log-${type}">${msg}</span></div>`; logs.scrollTop = logs.scrollHeight; }
+}
+
+function updateProgress(current, total, collected) {
+    const ps = document.getElementById('progressSection'), pb = document.getElementById('progressBar'), ec = document.getElementById('extractedCount'), tc = document.getElementById('totalCount'), et = document.getElementById('etaText'), ed = document.getElementById('etaDisplay');
+    if (ps) ps.style.display = 'block';
+    const pct = total > 0 ? (current / total) * 100 : 0;
+    if (pb) pb.style.width = pct + '%';
+    if (ec) ec.textContent = collected;
+    if (tc) tc.textContent = total;
+    const rem = total - current, secs = rem * 2, mins = Math.floor(secs / 60), s = Math.floor(secs % 60);
+    if (et) et.textContent = `~${mins}m ${s}s`;
+    if (ed) ed.textContent = `${String(mins).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+}
+
+function updatePhase(p) { const pt = document.getElementById('phaseText'); if (pt) pt.textContent = {starting:'Starting...',scrolling:'Loading results...',extracting:'Extracting...',completed:'Done!'}[p] || p; }
+
+function startTimer() {
+    startTime = Date.now();
+    timerInterval = setInterval(() => {
+        const e = Math.floor((Date.now() - startTime) / 1000), m = Math.floor(e / 60), s = e % 60;
+        const td = document.getElementById('timerDisplay');
+        if (td) td.textContent = `${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+    }, 1000);
+}
+
+function stopTimer() { if (timerInterval) { clearInterval(timerInterval); timerInterval = null; } }
+
+async function startScraping() {
+    const q = document.getElementById('query')?.value?.trim();
+    if (!q) { alert('Please enter a search query'); return; }
+    document.getElementById('startBtn').disabled = true;
+    document.getElementById('logs').innerHTML = '';
+    const db = document.getElementById('downloadBtn'), vb = document.getElementById('viewLeadsBtn');
+    if (db) db.style.display = 'none';
+    if (vb) vb.style.display = 'none';
+    document.getElementById('progressSection').style.display = 'none';
+    updateStatus('running', 'Starting...');
+    log(`Starting scrape for: "${q}"`, 'info');
+    startTimer();
+    lastLogCount = 0;
+    try {
+        const res = await fetch('/scrape', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ query: q }) });
+        const data = await res.json();
+        currentJobId = data.job_id;
+        log(`Job created: ${currentJobId.substring(0, 8)}...`, 'success');
+        pollInterval = setInterval(checkJobStatus, 1000);
+    } catch (e) {
+        log(`Error: ${e.message}`, 'error');
+        updateStatus('idle', 'Failed');
+        document.getElementById('startBtn').disabled = false;
+        stopTimer();
+    }
+}
+
+async function checkJobStatus() {
+    if (!currentJobId) return;
+    try {
+        const res = await fetch(`/job/${currentJobId}`);
+        const data = await res.json();
+        
+        if (data.logs && data.logs.length > lastLogCount) {
+            data.logs.slice(lastLogCount).forEach(l => {
+                const e = l.event, d = l.data || {};
+                if (e === 'scrolling') { updatePhase('scrolling'); updateStatus('running', `Scrolling (${d.count || 0}x)`); if ((d.count || 0) % 5 === 0) log(`Scrolled ${d.count} times...`, 'info'); }
+                else if (e === 'listings_found') { log(`Found ${d.total} businesses`, 'success'); updateProgress(0, d.total, 0); }
+                else if (e === 'extracting') { updatePhase('extracting'); updateStatus('running', `Extracting ${d.current}/${d.total}`); updateProgress(d.current, d.total, d.collected); if (d.current % 5 === 0) log(`Extracted: ${d.business}`, 'info'); }
+                else if (e === 'browser_starting') log('Starting browser...', 'info');
+                else if (e === 'navigating') log(d.message, 'info');
+                else if (e === 'completed') log(d.message, 'success');
+                else if (e === 'error') log(d.message, 'error');
+            });
+            lastLogCount = data.logs.length;
+        }
+
+        if (data.status === 'completed') {
+            clearInterval(pollInterval);
+            stopTimer();
+            updateStatus('completed', `Done! Found ${data.total_leads} leads`);
+            updatePhase('completed');
+            log(`✅ Completed! Found ${data.total_leads} unique leads`, 'success');
+            const db = document.getElementById('downloadBtn'), vb = document.getElementById('viewLeadsBtn');
+            if (db) db.style.display = 'inline-flex';
+            if (vb) vb.style.display = 'inline-flex';
+            document.getElementById('startBtn').disabled = false;
+            lastLogCount = 0;
+            await loadResults();
+            await loadHistory();
+        } else if (data.status === 'failed') {
+            clearInterval(pollInterval);
+            stopTimer();
+            log(`Error: ${data.error}`, 'error');
+            updateStatus('idle', 'Failed');
+            document.getElementById('startBtn').disabled = false;
+            lastLogCount = 0;
+        }
+    } catch (e) { console.error('Poll error:', e); }
+}
+
+async function loadResults() {
+    try {
+        const res = await fetch(`/job/${currentJobId}/results`);
+        const data = await res.json();
+        if (data.leads) allLeads = data.leads;
+    } catch (e) { console.error('Load error:', e); }
+}
+
+async function loadHistory() {
+    try {
+        const res = await fetch('/jobs');
+        const data = await res.json();
+        if (data.jobs) jobHistory = data.jobs;
+    } catch (e) { console.error('History error:', e); }
+}
+
+function downloadCSV(jobId) { 
+    const id = jobId || currentJobId;
+    if (id) window.location.href = `/job/${id}/download`; 
+}
+
+async function viewJobLeads(jobId) {
+    try {
+        const res = await fetch(`/job/${jobId}/results`);
+        const data = await res.json();
+        if (data.leads) {
+            allLeads = data.leads;
+            currentJobId = jobId;
+            showSection('leads');
+        }
+    } catch (e) { alert('Could not load leads for this job'); }
+}
+
+async function deleteJob(jobId) {
+    if (!confirm('Delete this job and its CSV file?')) return;
+    try {
+        const res = await fetch(`/job/${jobId}`, { method: 'DELETE' });
+        if (res.ok) {
+            await loadHistory();
+            renderHistorySection();
+        } else {
+            alert('Failed to delete job');
+        }
+    } catch (e) { alert('Error deleting job'); }
+}
+
+function renderHistorySection() {
+    loadHistory().then(() => {
+        const content = document.getElementById('content');
+        if (!jobHistory.length) {
+            content.innerHTML = `
+                <div class="page-header"><div><h1 class="page-title">Job History</h1><p class="page-subtitle">View previous scraping jobs</p></div></div>
+                <div class="card"><div class="empty-state"><h3>No jobs yet</h3><p>Start scraping to see history</p></div></div>`;
+            return;
+        }
+        content.innerHTML = `
+            <div class="page-header"><div><h1 class="page-title">Job History</h1><p class="page-subtitle">View previous scraping jobs</p></div></div>
+            <div class="card" style="padding:0">
+                ${jobHistory.map(j => `
+                    <div class="history-item">
+                        <div class="history-info">
+                            <div class="history-query">${j.query}</div>
+                            <div class="history-meta">
+                                <span class="status-badge ${j.status === 'completed' ? 'status-yes' : j.status === 'failed' ? 'status-no' : 'status-pending'}">${j.status}</span>
+                                ${j.total_leads !== null ? ` • ${j.total_leads} leads` : ''}
+                            </div>
+                        </div>
+                        <div class="history-actions">
+                            ${j.status === 'completed' ? `
+                                <button class="btn btn-sm btn-secondary" onclick="viewJobLeads('${j.job_id}')">View</button>
+                                <button class="btn btn-sm btn-success" onclick="downloadCSV('${j.job_id}')">Download</button>
+                            ` : ''}
+                            <button class="btn btn-sm" style="background:var(--accent-red);color:#fff" onclick="deleteJob('${j.job_id}')">Delete</button>
+                        </div>
+                    </div>
+                `).join('')}
+            </div>`;
+    });
+}
+
+function renderDocsSection() {
+    document.getElementById('content').innerHTML = `
+        <div class="page-header"><div><h1 class="page-title">API Documentation</h1><p class="page-subtitle">Complete guide to using the Lead Generator API</p></div></div>
+        
+        <div class="card">
+            <h3 style="margin-bottom:16px">🚀 Getting Started</h3>
+            <p style="color:var(--text-secondary);margin-bottom:16px">Base URL: <code style="background:var(--bg-tertiary);padding:4px 8px;border-radius:4px">http://localhost:8000</code></p>
+            <p style="color:var(--text-secondary)">All responses are in JSON format. The API allows you to scrape Google Maps for business leads programmatically.</p>
+        </div>
+        
+        <div class="card">
+            <h3 style="margin-bottom:16px;color:var(--accent-green)">POST /scrape</h3>
+            <p style="color:var(--text-secondary);margin-bottom:12px">Start a new scraping job (runs in background)</p>
+            <div style="background:var(--bg-primary);padding:16px;border-radius:8px;margin-bottom:12px">
+                <p style="color:var(--text-muted);font-size:12px;margin-bottom:8px">Request Body:</p>
+                <pre style="color:var(--accent-blue);font-size:13px;margin:0">{
+  "query": "plumbers in Chicago"
+}</pre>
+            </div>
+            <div style="background:var(--bg-primary);padding:16px;border-radius:8px">
+                <p style="color:var(--text-muted);font-size:12px;margin-bottom:8px">Response:</p>
+                <pre style="color:var(--accent-green);font-size:13px;margin:0">{
+  "job_id": "uuid-string",
+  "status": "pending",
+  "message": "Scraping job started..."
+}</pre>
+            </div>
+        </div>
+        
+        <div class="card">
+            <h3 style="margin-bottom:16px;color:var(--accent-blue)">GET /job/{job_id}</h3>
+            <p style="color:var(--text-secondary);margin-bottom:12px">Check status and progress of a scraping job</p>
+            <div style="background:var(--bg-primary);padding:16px;border-radius:8px">
+                <p style="color:var(--text-muted);font-size:12px;margin-bottom:8px">Response:</p>
+                <pre style="color:var(--accent-blue);font-size:13px;margin:0">{
+  "job_id": "uuid",
+  "status": "running|completed|failed",
+  "phase": "scrolling|extracting|completed",
+  "query": "plumbers in Chicago",
+  "total_leads": 45,
+  "total_listings": 50,
+  "current": 30,
+  "collected": 28,
+  "csv_file": "leads/leads_xxx.csv",
+  "logs": [...]
+}</pre>
+            </div>
+        </div>
+        
+        <div class="card">
+            <h3 style="margin-bottom:16px;color:var(--accent-blue)">GET /job/{job_id}/results</h3>
+            <p style="color:var(--text-secondary);margin-bottom:12px">Get full results of a completed job</p>
+            <div style="background:var(--bg-primary);padding:16px;border-radius:8px">
+                <p style="color:var(--text-muted);font-size:12px;margin-bottom:8px">Response:</p>
+                <pre style="color:var(--accent-blue);font-size:13px;margin:0">{
+  "job_id": "uuid",
+  "query": "plumbers in Chicago",
+  "total_leads": 45,
+  "leads": [
+    {
+      "business_name": "ABC Plumbing",
+      "category": "Plumber",
+      "address": "123 Main St",
+      "phone": "(555) 123-4567",
+      "website": "https://...",
+      "has_website": "Yes",
+      "rating": "4.5 stars",
+      "google_maps_link": "https://..."
+    }
+  ]
+}</pre>
+            </div>
+        </div>
+        
+        <div class="card">
+            <h3 style="margin-bottom:16px;color:var(--accent-blue)">GET /job/{job_id}/download</h3>
+            <p style="color:var(--text-secondary)">Download CSV file for a completed job. Returns the file directly.</p>
+        </div>
+        
+        <div class="card">
+            <h3 style="margin-bottom:16px;color:var(--accent-blue)">GET /jobs</h3>
+            <p style="color:var(--text-secondary);margin-bottom:12px">List all scraping jobs</p>
+            <div style="background:var(--bg-primary);padding:16px;border-radius:8px">
+                <pre style="color:var(--accent-blue);font-size:13px;margin:0">{
+  "total_jobs": 3,
+  "jobs": [
+    {"job_id": "...", "status": "completed", "query": "...", "total_leads": 45}
+  ]
+}</pre>
+            </div>
+        </div>
+        
+        <div class="card">
+            <h3 style="margin-bottom:16px;color:var(--accent-red)">DELETE /job/{job_id}</h3>
+            <p style="color:var(--text-secondary);margin-bottom:12px">Delete a job and its CSV file</p>
+            <div style="background:var(--bg-primary);padding:16px;border-radius:8px">
+                <pre style="color:var(--accent-green);font-size:13px;margin:0">{
+  "success": true,
+  "message": "Job deleted successfully"
+}</pre>
+            </div>
+        </div>
+        
+        <div class="card">
+            <h3 style="margin-bottom:16px">📋 Example Usage (Python)</h3>
+            <div style="background:var(--bg-primary);padding:16px;border-radius:8px">
+                <pre style="color:var(--text-primary);font-size:13px;margin:0">import requests
+import time
+
+# Start scraping
+resp = requests.post('http://localhost:8000/scrape', 
+    json={'query': 'dentists in New York'})
+job_id = resp.json()['job_id']
+
+# Poll for completion
+while True:
+    status = requests.get(f'http://localhost:8000/job/{job_id}').json()
+    if status['status'] == 'completed':
+        break
+    print(f"Progress: {status['current']}/{status['total_listings']}")
+    time.sleep(2)
+
+# Get results
+results = requests.get(f'http://localhost:8000/job/{job_id}/results').json()
+print(f"Found {results['total_leads']} leads")
+
+# Download CSV
+csv = requests.get(f'http://localhost:8000/job/{job_id}/download')
+with open('leads.csv', 'wb') as f:
+    f.write(csv.content)</pre>
+            </div>
+        </div>
+        
+        <div class="card">
+            <h3 style="margin-bottom:16px">📋 Example Usage (cURL)</h3>
+            <div style="background:var(--bg-primary);padding:16px;border-radius:8px">
+                <pre style="color:var(--text-primary);font-size:13px;margin:0"># Start scraping
+curl -X POST http://localhost:8000/scrape \\
+  -H "Content-Type: application/json" \\
+  -d '{"query": "restaurants in Miami"}'
+
+# Check status
+curl http://localhost:8000/job/{job_id}
+
+# Get results
+curl http://localhost:8000/job/{job_id}/results
+
+# Download CSV
+curl -o leads.csv http://localhost:8000/job/{job_id}/download
+
+# Delete job
+curl -X DELETE http://localhost:8000/job/{job_id}</pre>
+            </div>
+        </div>
+    `;
+}
+
+function renderLeadsSection() {
+    const noWebsite = allLeads.filter(l => l.has_website === 'No').length;
+    const filterLabels = { all: `All (${allLeads.length})`, no: `🔥 No Website (${noWebsite})`, yes: `Has Website (${allLeads.length - noWebsite})` };
+    document.getElementById('content').innerHTML = `
+        <div class="page-header">
+            <div><h1 class="page-title">Lead Management</h1><p class="page-subtitle">Manage your leads</p></div>
+            <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap">
+                <div class="search-box"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg><input type="text" placeholder="Search..." id="searchInput" oninput="handleSearch()"></div>
+                <button class="btn btn-primary" onclick="showSection('dashboard')">New Scrape</button>
+            </div>
+        </div>
+        <div class="table-container">
+            <div class="table-header">
+                <span id="tableInfo">Showing 0 leads</span>
+                <select id="filterSelect" onchange="setFilter(this.value)" style="padding:8px 12px;background:var(--bg-tertiary);border:1px solid var(--border-color);border-radius:6px;color:var(--text-primary);font-size:13px;cursor:pointer">
+                    <option value="all" ${currentFilter==='all'?'selected':''}>All (${allLeads.length})</option>
+                    <option value="no" ${currentFilter==='no'?'selected':''}>🔥 No Website (${noWebsite})</option>
+                    <option value="yes" ${currentFilter==='yes'?'selected':''}>Has Website (${allLeads.length - noWebsite})</option>
+                </select>
+            </div>
+            <div class="table-scroll"><table><thead><tr><th>Company</th><th>Phone</th><th>Category</th><th>Status</th><th>Maps</th></tr></thead><tbody id="tableBody"></tbody></table></div>
+            <div class="pagination" id="pagination"></div>
+        </div>`;
+    applyFilters();
+}
+
+function setFilter(f) { currentFilter = f; currentPage = 1; renderLeadsSection(); }
+function handleSearch() { currentPage = 1; applyFilters(); }
+
+function applyFilters() {
+    const s = document.getElementById('searchInput')?.value?.toLowerCase() || '';
+    filteredLeads = allLeads.filter(l => {
+        const mf = currentFilter === 'all' || (currentFilter === 'no' && l.has_website === 'No') || (currentFilter === 'yes' && l.has_website === 'Yes');
+        const ms = !s || l.business_name?.toLowerCase().includes(s) || l.category?.toLowerCase().includes(s);
+        return mf && ms;
+    });
+    renderTable();
+}
+
+function renderTable() {
+    const tb = document.getElementById('tableBody'), ti = document.getElementById('tableInfo'), pg = document.getElementById('pagination');
+    if (!tb) return;
+    const tp = Math.ceil(filteredLeads.length / perPage), st = (currentPage - 1) * perPage, pl = filteredLeads.slice(st, st + perPage);
+    if (!filteredLeads.length) { tb.innerHTML = '<tr><td colspan="5"><div class="empty-state"><h3>No leads</h3><p>Start scraping to get leads</p></div></td></tr>'; ti.textContent = 'No leads'; pg.innerHTML = ''; return; }
+    tb.innerHTML = pl.map(l => `<tr>
+        <td><strong>${l.business_name || '-'}</strong><br><small style="color:var(--text-muted)">${(l.address || '').substring(0, 40)}</small></td>
+        <td>${l.phone || '-'}</td>
+        <td>${l.category || '-'}</td>
+        <td>${l.website ? `<a href="${l.website}" target="_blank" class="status-badge status-yes" style="text-decoration:none">Has Website ↗</a>` : '<span class="status-badge status-no">No Website</span>'}</td>
+        <td>${l.google_maps_link ? `<a href="${l.google_maps_link}" target="_blank" style="color:var(--accent-blue)">View</a>` : '-'}</td>
+    </tr>`).join('');
+    ti.textContent = `Showing ${st + 1}-${Math.min(st + perPage, filteredLeads.length)} of ${filteredLeads.length}`;
+    pg.innerHTML = `<span>Page ${currentPage}/${tp || 1}</span><div><button class="page-btn" onclick="goToPage(${currentPage-1})" ${currentPage===1?'disabled':''}>Prev</button> <button class="page-btn" onclick="goToPage(${currentPage+1})" ${currentPage>=tp?'disabled':''}>Next</button></div>`;
+}
+
+function goToPage(p) { currentPage = p; applyFilters(); }
+
+// Load history on startup
+loadHistory();
+</script>
