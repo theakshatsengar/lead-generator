@@ -106,6 +106,136 @@ def scroll_results(driver, scrollable_div, callback=None):
     return scroll_count
 
 
+def extract_from_list_view(driver, callback=None):
+    """Extract business info directly from list view - FAST method for cloud"""
+    results = []
+    try:
+        soup = BeautifulSoup(driver.page_source, 'html.parser')
+        
+        # Find all business cards in the feed - try multiple selectors
+        listings = soup.find_all('div', class_='Nv2PK')
+        
+        # Fallback selectors if primary doesn't work
+        if not listings:
+            listings = soup.find_all('div', class_='lI9IFe')
+        if not listings:
+            # Try finding by the link pattern
+            feed = soup.find('div', {'role': 'feed'})
+            if feed:
+                listings = feed.find_all('div', recursive=False)
+        
+        if callback:
+            callback("extracting_list", {"total": len(listings), "message": f"Extracting {len(listings)} businesses from list..."})
+        
+        for i, listing in enumerate(listings):
+            try:
+                # Business name
+                name_elem = listing.find('div', class_='qBF1Pd')
+                if not name_elem:
+                    name_elem = listing.find('span', class_='OSrXXb')
+                name = name_elem.text.strip() if name_elem else ""
+                
+                if not name:
+                    continue
+                
+                # Rating and reviews
+                rating = ""
+                reviews = ""
+                rating_elem = listing.find('span', class_='MW4etd')
+                if rating_elem:
+                    rating = rating_elem.text.strip()
+                reviews_elem = listing.find('span', class_='UY7F9')
+                if reviews_elem:
+                    reviews = reviews_elem.text.strip().replace('(', '').replace(')', '')
+                
+                # Category/type
+                category = ""
+                category_spans = listing.find_all('span')
+                for span in category_spans:
+                    text = span.text.strip()
+                    if text and '·' in text:
+                        parts = text.split('·')
+                        if len(parts) > 0:
+                            category = parts[0].strip()
+                            break
+                
+                # Address - usually in the W4Efsd class
+                address = ""
+                info_divs = listing.find_all('div', class_='W4Efsd')
+                for div in info_divs:
+                    text = div.text.strip()
+                    # Look for address patterns (contains numbers or common address words)
+                    if any(x in text.lower() for x in ['street', 'road', 'ave', 'blvd', 'dr', 'lane', 'st,', 'rd,']) or re.search(r'\d{2,}', text):
+                        address = text
+                        break
+                
+                # Google Maps link
+                link_elem = listing.find('a', class_='hfpxzc')
+                maps_link = ""
+                if link_elem:
+                    maps_link = link_elem.get('href', '')
+                
+                # Website - check for website indicator
+                has_website = "Unknown"
+                website_elem = listing.find('a', {'data-value': 'Website'})
+                if website_elem:
+                    has_website = "Yes"
+                
+                results.append({
+                    'business_name': name,
+                    'category': category,
+                    'address': address,
+                    'phone': '',  # Not available in list view
+                    'website': '',  # Need to click for this
+                    'has_website': has_website,
+                    'rating': rating,
+                    'reviews': reviews,
+                    'google_maps_link': maps_link
+                })
+                
+                if callback and (i + 1) % 10 == 0:
+                    callback("extracting", {
+                        "current": i + 1,
+                        "total": len(listings),
+                        "collected": len(results),
+                        "business": name
+                    })
+                    
+            except Exception as e:
+                continue
+        
+        print(f"Extracted {len(results)} businesses from list view")
+        
+        # FALLBACK: If no results, try extracting from aria-label on links
+        if not results:
+            print("Primary extraction failed, trying fallback method...")
+            links = soup.find_all('a', class_='hfpxzc')
+            for link in links:
+                try:
+                    aria_label = link.get('aria-label', '')
+                    href = link.get('href', '')
+                    if aria_label:
+                        results.append({
+                            'business_name': aria_label,
+                            'category': '',
+                            'address': '',
+                            'phone': '',
+                            'website': '',
+                            'has_website': 'Unknown',
+                            'rating': '',
+                            'reviews': '',
+                            'google_maps_link': href
+                        })
+                except:
+                    continue
+            print(f"Fallback extracted {len(results)} businesses")
+        
+    except Exception as e:
+        print(f"List extraction error: {e}")
+    
+    return results
+
+
 def extract_business_info(driver):
     """Extract business info from the details panel"""
     try:
@@ -168,10 +298,18 @@ def scrape_maps(query):
     return scrape_maps_with_progress(query, None)
 
 
-def scrape_maps_with_progress(query, callback=None):
-    """Main scraping function with progress callback"""
+def scrape_maps_with_progress(query, callback=None, fast_mode=True, detail_limit=10):
+    """Main scraping function with progress callback
+    
+    Args:
+        query: Search query
+        callback: Progress callback function
+        fast_mode: If True, extract from list view (fast, works on cloud)
+                   If False, click each business for full details (slow, may fail on cloud)
+        detail_limit: When fast_mode=False, limit how many businesses to extract details from
+    """
     print(f"\n{'='*60}")
-    print(f"Google Maps Scraper")
+    print(f"Google Maps Scraper {'(FAST MODE)' if fast_mode else '(DETAIL MODE)'}")
     print(f"Query: {query}")
     print(f"{'='*60}\n")
     
@@ -217,35 +355,80 @@ def scrape_maps_with_progress(query, callback=None):
         scrollable_div = driver.find_element(By.CSS_SELECTOR, "div[role='feed']")
         scroll_results(driver, scrollable_div, callback)
         
+        # Count total listings
         listings = driver.find_elements(By.CSS_SELECTOR, "div[role='feed'] > div > div > a")
         total_listings = len(listings)
         print(f"\nFound {total_listings} listings to process")
         
         if callback:
-            callback("listings_found", {"total": total_listings, "message": f"Found {total_listings} businesses to extract"})
+            callback("listings_found", {"total": total_listings, "message": f"Found {total_listings} businesses"})
         
-        for i, listing in enumerate(listings):
-            try:
-                driver.execute_script("arguments[0].scrollIntoView(true);", listing)
-                time.sleep(0.3)
-                listing.click()
-                time.sleep(random.uniform(1.2, 2))
+        if fast_mode:
+            # FAST MODE: Extract directly from list view (works on cloud!)
+            if callback:
+                callback("extracting_fast", {"message": "Using fast extraction mode..."})
+            results = extract_from_list_view(driver, callback)
+            
+            # Optionally get details for first few businesses
+            if detail_limit > 0 and len(listings) > 0:
+                if callback:
+                    callback("enriching", {"message": f"Getting phone/website for first {min(detail_limit, len(listings))} businesses..."})
                 
-                info = extract_business_info(driver)
-                
-                if info:
-                    results.append(info)
-                    if callback:
-                        callback("extracting", {
-                            "current": i + 1,
-                            "total": total_listings,
-                            "collected": len(results),
-                            "business": info.get("business_name", "Unknown")
-                        })
-                    if len(results) % 10 == 0:
-                        print(f"Collected {len(results)}/{total_listings} leads...")
-            except Exception as e:
-                continue
+                for i, listing in enumerate(listings[:detail_limit]):
+                    try:
+                        driver.execute_script("arguments[0].scrollIntoView(true);", listing)
+                        time.sleep(0.3)
+                        listing.click()
+                        time.sleep(random.uniform(1.0, 1.5))
+                        
+                        info = extract_business_info(driver)
+                        if info:
+                            # Update the matching result with phone/website
+                            for r in results:
+                                if r['business_name'] == info['business_name']:
+                                    r['phone'] = info['phone']
+                                    r['website'] = info['website']
+                                    r['has_website'] = info['has_website']
+                                    r['address'] = info['address'] or r['address']
+                                    break
+                        
+                        if callback:
+                            callback("enriching_progress", {
+                                "current": i + 1,
+                                "total": min(detail_limit, len(listings)),
+                                "business": info.get("business_name", "Unknown") if info else "Unknown"
+                            })
+                    except Exception as e:
+                        print(f"Detail extraction error: {e}")
+                        continue
+        else:
+            # SLOW MODE: Click each business (may fail on cloud IPs)
+            for i, listing in enumerate(listings):
+                if detail_limit > 0 and i >= detail_limit:
+                    print(f"Reached detail limit of {detail_limit}")
+                    break
+                    
+                try:
+                    driver.execute_script("arguments[0].scrollIntoView(true);", listing)
+                    time.sleep(0.3)
+                    listing.click()
+                    time.sleep(random.uniform(1.2, 2))
+                    
+                    info = extract_business_info(driver)
+                    
+                    if info:
+                        results.append(info)
+                        if callback:
+                            callback("extracting", {
+                                "current": i + 1,
+                                "total": total_listings,
+                                "collected": len(results),
+                                "business": info.get("business_name", "Unknown")
+                            })
+                        if len(results) % 10 == 0:
+                            print(f"Collected {len(results)}/{total_listings} leads...")
+                except Exception as e:
+                    continue
                 
     except Exception as e:
         print(f"Error: {e}")
@@ -256,6 +439,7 @@ def scrape_maps_with_progress(query, callback=None):
         if callback:
             callback("browser_closed", {"message": "Browser closed"})
     
+    print(f"\nTotal results: {len(results)}")
     return results
 
 

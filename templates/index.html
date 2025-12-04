@@ -249,7 +249,7 @@ function updateProgress(current, total, collected) {
     if (ed) ed.textContent = `${String(mins).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
 }
 
-function updatePhase(p) { const pt = document.getElementById('phaseText'); if (pt) pt.textContent = {starting:'Starting...',scrolling:'Loading results...',extracting:'Extracting...',completed:'Done!'}[p] || p; }
+function updatePhase(p) { const pt = document.getElementById('phaseText'); if (pt) pt.textContent = {starting:'Starting...',scrolling:'Loading results...',extracting:'Extracting...',extracting_fast:'Fast extraction...',extracting_list:'Extracting list...',enriching:'Getting details...',completed:'Done!'}[p] || p; }
 
 function startTimer() {
     startTime = Date.now();
@@ -301,6 +301,10 @@ async function checkJobStatus() {
                 if (e === 'scrolling') { updatePhase('scrolling'); updateStatus('running', `Scrolling (${d.count || 0}x)`); if ((d.count || 0) % 5 === 0) log(`Scrolled ${d.count} times...`, 'info'); }
                 else if (e === 'listings_found') { log(`Found ${d.total} businesses`, 'success'); updateProgress(0, d.total, 0); }
                 else if (e === 'extracting') { updatePhase('extracting'); updateStatus('running', `Extracting ${d.current}/${d.total}`); updateProgress(d.current, d.total, d.collected); if (d.current % 5 === 0) log(`Extracted: ${d.business}`, 'info'); }
+                else if (e === 'extracting_fast') { updatePhase('extracting_fast'); updateStatus('running', 'Fast extraction...'); log('Using fast extraction mode (cloud optimized)', 'info'); }
+                else if (e === 'extracting_list') { updatePhase('extracting_list'); updateStatus('running', `Extracting ${d.total} businesses...`); log(`Extracting ${d.total} businesses from list view...`, 'info'); }
+                else if (e === 'enriching') { updatePhase('enriching'); updateStatus('running', 'Getting contact details...'); log(d.message || 'Getting phone/website details...', 'info'); }
+                else if (e === 'enriching_progress') { updatePhase('enriching'); updateStatus('running', `Enriching ${d.current}/${d.total}`); log(`Got details for: ${d.business}`, 'info'); }
                 else if (e === 'browser_starting') log('Starting browser...', 'info');
                 else if (e === 'navigating') log(d.message, 'info');
                 else if (e === 'completed') log(d.message, 'success');

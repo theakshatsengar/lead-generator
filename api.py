@@ -68,6 +68,16 @@ def progress_callback(job_id: str, event: str, data: dict):
         jobs[job_id]["current"] = data.get("current", 0)
         jobs[job_id]["total_listings"] = data.get("total", 0)
         jobs[job_id]["collected"] = data.get("collected", 0)
+    elif event == "extracting_fast":
+        jobs[job_id]["phase"] = "extracting_fast"
+    elif event == "extracting_list":
+        jobs[job_id]["phase"] = "extracting_list"
+        jobs[job_id]["total_listings"] = data.get("total", 0)
+    elif event == "enriching":
+        jobs[job_id]["phase"] = "enriching"
+    elif event == "enriching_progress":
+        jobs[job_id]["phase"] = "enriching"
+        jobs[job_id]["current"] = data.get("current", 0)
 
 
 def run_scraper(job_id: str, query: str):
@@ -82,7 +92,9 @@ def run_scraper(job_id: str, query: str):
     
     try:
         callback = lambda event, data: progress_callback(job_id, event, data)
-        results = scrape_maps_with_progress(query, callback)
+        # Use fast_mode=True for cloud deployment (extracts from list view)
+        # detail_limit=15 means we'll get phone/website for first 15 businesses
+        results = scrape_maps_with_progress(query, callback, fast_mode=True, detail_limit=15)
         
         if results:
             results = deduplicate_results(results)
