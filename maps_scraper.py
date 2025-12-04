@@ -5,6 +5,7 @@ Usage: python maps_scraper.py "restaurants in New York"
 import time
 import random
 import sys
+import os
 from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.chrome.options import Options
@@ -25,12 +26,49 @@ def setup_driver():
     options.add_argument("--no-sandbox")
     options.add_argument("--disable-gpu")
     options.add_argument("--window-size=1920,1080")
+    options.add_argument("--headless=new")
+    options.add_argument("--disable-extensions")
+    options.add_argument("--disable-software-rasterizer")
+    options.add_argument("--remote-debugging-port=9222")
+    options.add_argument("--disable-setuid-sandbox")
+    options.add_argument("--single-process")
+    options.add_argument("--lang=en-US")
+    options.add_argument("user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
     options.add_experimental_option("excludeSwitches", ["enable-automation"])
     options.add_experimental_option("useAutomationExtension", False)
+    
+    if os.environ.get('RENDER'):
+        options.binary_location = "/usr/bin/google-chrome-stable"
     
     driver = webdriver.Chrome(options=options)
     driver.execute_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
     return driver
+
+
+def handle_consent(driver):
+    """Handle Google consent popup if present"""
+    try:
+        # Try to find and click "Accept all" or "Reject all" button
+        consent_buttons = [
+            "//button[contains(text(), 'Accept all')]",
+            "//button[contains(text(), 'Reject all')]",
+            "//button[contains(text(), 'Accept')]",
+            "//button[@aria-label='Accept all']",
+            "//form//button",
+        ]
+        for xpath in consent_buttons:
+            try:
+                btn = driver.find_element(By.XPATH, xpath)
+                if btn.is_displayed():
+                    btn.click()
+                    print("Clicked consent button")
+                    time.sleep(2)
+                    return True
+            except:
+                continue
+    except Exception as e:
+        print(f"No consent popup or error: {e}")
+    return False
 
 
 def scroll_results(driver, scrollable_div, callback=None):
@@ -46,7 +84,6 @@ def scroll_results(driver, scrollable_div, callback=None):
         
         new_height = driver.execute_script("return arguments[0].scrollHeight", scrollable_div)
         
-        # Check if height changed
         if new_height == last_height:
             no_change_count += 1
             if no_change_count >= 5:
@@ -73,48 +110,39 @@ def extract_business_info(driver):
     """Extract business info from the details panel"""
     try:
         soup = BeautifulSoup(driver.page_source, 'html.parser')
-        
-        # Get current Google Maps URL for this business
         google_maps_link = driver.current_url
         
-        # Business name
         name_elem = soup.find('h1', class_='DUwDvf')
         name = name_elem.text.strip() if name_elem else ""
         
         if not name:
             return None
         
-        # Rating
         rating = ""
         rating_elem = soup.find('span', class_='ceNzKf')
         if rating_elem:
             rating = rating_elem.get('aria-label', '')
         
-        # Reviews count
         reviews = ""
         reviews_elem = soup.find('span', class_='F7nice')
         if reviews_elem:
             reviews = reviews_elem.text.strip()
         
-        # Address
         address = ""
         address_button = soup.find('button', {'data-item-id': 'address'})
         if address_button:
             address = address_button.text.strip()
         
-        # Phone
         phone = ""
         phone_button = soup.find('button', {'data-item-id': re.compile(r'phone:tel:')})
         if phone_button:
             phone = phone_button.text.strip()
         
-        # Website
         website = ""
         website_link = soup.find('a', {'data-item-id': 'authority'})
         if website_link:
             website = website_link.get('href', '')
         
-        # Category
         category = ""
         category_elem = soup.find('button', class_='DkEaL')
         if category_elem:
@@ -131,7 +159,6 @@ def extract_business_info(driver):
             'reviews': reviews,
             'google_maps_link': google_maps_link
         }
-        
     except Exception as e:
         return None
 
@@ -155,56 +182,59 @@ def scrape_maps_with_progress(query, callback=None):
     results = []
     
     try:
-        # Navigate to Google Maps search
         maps_url = f"https://www.google.com/maps/search/{query.replace(' ', '+')}"
         print(f"Opening: {maps_url}")
         if callback:
             callback("navigating", {"message": f"Opening Google Maps: {query}"})
         driver.get(maps_url)
-        time.sleep(4)
+        time.sleep(3)
         
-        # Wait for results panel
+        # Handle consent popup
+        handle_consent(driver)
+        time.sleep(2)
+        
         try:
             if callback:
                 callback("waiting", {"message": "Waiting for results to load..."})
-            WebDriverWait(driver, 15).until(
+            WebDriverWait(driver, 20).until(
                 EC.presence_of_element_located((By.CSS_SELECTOR, "div[role='feed']"))
             )
         except:
+            # Try to save screenshot for debugging
+            try:
+                driver.save_screenshot("/app/leads/debug_screenshot.png")
+                print(f"Page title: {driver.title}")
+                print(f"Current URL: {driver.current_url}")
+            except:
+                pass
             print("Could not find results panel. Try a different query.")
             if callback:
-                callback("error", {"message": "Could not find results panel"})
+                callback("error", {"message": "Could not find results panel - Google may be blocking or showing consent page"})
             return []
         
-        # Get scrollable div and scroll to load ALL results (no limit)
         if callback:
             callback("scrolling", {"count": 0, "message": "Scrolling to load all results..."})
         scrollable_div = driver.find_element(By.CSS_SELECTOR, "div[role='feed']")
         scroll_results(driver, scrollable_div, callback)
         
-        # Find all listings
         listings = driver.find_elements(By.CSS_SELECTOR, "div[role='feed'] > div > div > a")
         total_listings = len(listings)
-        print(f"\nFound {total_listings} listings to process - will extract ALL of them")
+        print(f"\nFound {total_listings} listings to process")
         
         if callback:
             callback("listings_found", {"total": total_listings, "message": f"Found {total_listings} businesses to extract"})
         
-        # Process each listing - ALL of them, no deduplication
         for i, listing in enumerate(listings):
             try:
-                # Scroll listing into view and click
                 driver.execute_script("arguments[0].scrollIntoView(true);", listing)
                 time.sleep(0.3)
                 listing.click()
                 time.sleep(random.uniform(1.2, 2))
                 
-                # Extract info
                 info = extract_business_info(driver)
                 
                 if info:
                     results.append(info)
-                    
                     if callback:
                         callback("extracting", {
                             "current": i + 1,
@@ -212,10 +242,8 @@ def scrape_maps_with_progress(query, callback=None):
                             "collected": len(results),
                             "business": info.get("business_name", "Unknown")
                         })
-                    
                     if len(results) % 10 == 0:
                         print(f"Collected {len(results)}/{total_listings} leads...")
-                        
             except Exception as e:
                 continue
                 
@@ -238,45 +266,29 @@ def save_results(results, query):
         return
     
     df = pd.DataFrame(results)
-    
-    # Create filename from query
     safe_query = re.sub(r'[^\w\s-]', '', query).replace(' ', '_')[:30]
     date_str = datetime.now().strftime('%Y%m%d_%H%M%S')
     filename = f"leads_{safe_query}_{date_str}.csv"
     
     df.to_csv(filename, index=False)
-    print(f"\n{'='*60}")
-    print(f"DONE!")
-    print(f"{'='*60}")
-    print(f"Total leads: {len(df)}")
-    print(f"With website: {len(df[df['has_website'] == 'Yes'])}")
-    print(f"WITHOUT website (hot leads!): {len(df[df['has_website'] == 'No'])}")
-    print(f"\nSaved to: {filename}")
-    
+    print(f"\nSaved {len(df)} leads to {filename}")
     return filename
 
 
 def main():
-    # Get query from command line or prompt
     if len(sys.argv) > 1:
         query = ' '.join(sys.argv[1:])
     else:
         print("Google Maps Lead Scraper")
-        print("-" * 40)
-        query = input("Enter search query (e.g., 'plumbers in Chicago'): ").strip()
+        query = input("Enter search query: ").strip()
     
     if not query:
-        print("No query provided. Exiting.")
+        print("No query provided.")
         return
     
-    # Run scraper
     results = scrape_maps(query)
-    
-    # Save results
     if results:
         save_results(results, query)
-    else:
-        print("No results found.")
 
 
 if __name__ == "__main__":
