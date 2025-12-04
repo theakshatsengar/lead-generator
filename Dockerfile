@@ -1,5 +1,5 @@
 # Use Python with Chrome pre-installed
-FROM python:3.11-slim
+FROM python:3.11-slim-bookworm
 
 # Install Chrome and dependencies
 RUN apt-get update && apt-get install -y \
@@ -8,7 +8,6 @@ RUN apt-get update && apt-get install -y \
     unzip \
     xvfb \
     libxi6 \
-    libgconf-2-4 \
     libnss3 \
     libxss1 \
     libasound2 \
@@ -16,8 +15,11 @@ RUN apt-get update && apt-get install -y \
     libgtk-3-0 \
     libdrm2 \
     libgbm1 \
-    && wget -q -O - https://dl-ssl.google.com/linux/linux_signing_key.pub | apt-key add - \
-    && echo "deb [arch=amd64] http://dl.google.com/linux/chrome/deb/ stable main" >> /etc/apt/sources.list.d/google-chrome.list \
+    fonts-liberation \
+    libappindicator3-1 \
+    xdg-utils \
+    && wget -q -O - https://dl-ssl.google.com/linux/linux_signing_key.pub | gpg --dearmor -o /usr/share/keyrings/google-chrome.gpg \
+    && echo "deb [arch=amd64 signed-by=/usr/share/keyrings/google-chrome.gpg] http://dl.google.com/linux/chrome/deb/ stable main" > /etc/apt/sources.list.d/google-chrome.list \
     && apt-get update \
     && apt-get install -y google-chrome-stable \
     && rm -rf /var/lib/apt/lists/*
@@ -37,6 +39,9 @@ RUN mkdir -p leads
 
 # Expose port
 EXPOSE 10000
+
+# Set environment variable for Render
+ENV RENDER=true
 
 # Run with Xvfb for headless Chrome
 CMD xvfb-run --server-args="-screen 0 1920x1080x24" uvicorn api:app --host 0.0.0.0 --port 10000
