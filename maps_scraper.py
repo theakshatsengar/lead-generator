@@ -6,6 +6,7 @@ import time
 import random
 import sys
 import os
+import gc
 from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.chrome.options import Options
@@ -18,25 +19,45 @@ import re
 
 
 def setup_driver():
-    """Setup Chrome driver"""
+    """Setup Chrome driver - optimized for low memory (512MB)"""
     options = Options()
-    options.add_argument("--disable-blink-features=AutomationControlled")
-    options.add_argument("--disable-infobars")
-    options.add_argument("--disable-dev-shm-usage")
-    options.add_argument("--no-sandbox")
-    options.add_argument("--disable-gpu")
-    options.add_argument("--window-size=1920,1080")
+    
+    # Essential options
     options.add_argument("--headless=new")
+    options.add_argument("--no-sandbox")
+    options.add_argument("--disable-dev-shm-usage")
+    options.add_argument("--disable-gpu")
+    
+    # MEMORY OPTIMIZATION - Critical for 512MB Render
     options.add_argument("--disable-extensions")
+    options.add_argument("--disable-plugins")
+    options.add_argument("--disable-images")  # Don't load images - saves ~100MB
+    options.add_argument("--blink-settings=imagesEnabled=false")
     options.add_argument("--disable-software-rasterizer")
-    options.add_argument("--remote-debugging-port=9222")
-    options.add_argument("--disable-setuid-sandbox")
-    options.add_argument("--single-process")
+    options.add_argument("--disable-background-networking")
+    options.add_argument("--disable-default-apps")
+    options.add_argument("--disable-sync")
+    options.add_argument("--disable-translate")
+    options.add_argument("--disable-logging")
+    options.add_argument("--disable-notifications")
+    options.add_argument("--disable-popup-blocking")
+    options.add_argument("--no-first-run")
+    options.add_argument("--no-zygote")
+    options.add_argument("--single-process")  # Important for low memory
+    options.add_argument("--renderer-process-limit=1")
+    options.add_argument("--js-flags=--max-old-space-size=128")  # Limit JS heap
+    
+    # Smaller window = less memory
+    options.add_argument("--window-size=1280,720")
+    
+    # Anti-detection
+    options.add_argument("--disable-blink-features=AutomationControlled")
     options.add_argument("--lang=en-US")
     options.add_argument("user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
     options.add_experimental_option("excludeSwitches", ["enable-automation"])
     options.add_experimental_option("useAutomationExtension", False)
     
+    # Render-specific
     if os.environ.get('RENDER'):
         options.binary_location = "/usr/bin/google-chrome-stable"
     
@@ -71,23 +92,23 @@ def handle_consent(driver):
     return False
 
 
-def scroll_results(driver, scrollable_div, callback=None):
-    """Scroll until we reach the absolute end - no limits"""
-    print("Scrolling to load ALL results (no limit)...")
+def scroll_results(driver, scrollable_div, callback=None, max_scrolls=15):
+    """Scroll to load results - LIMITED to prevent memory issues on cloud"""
+    print(f"Scrolling to load results (max {max_scrolls} scrolls for memory)...")
     last_height = 0
     scroll_count = 0
     no_change_count = 0
     
-    while True:
+    while scroll_count < max_scrolls:
         driver.execute_script("arguments[0].scrollTop = arguments[0].scrollHeight", scrollable_div)
-        time.sleep(random.uniform(1.5, 2.5))
+        time.sleep(random.uniform(1.2, 2.0))
         
         new_height = driver.execute_script("return arguments[0].scrollHeight", scrollable_div)
         
         if new_height == last_height:
             no_change_count += 1
-            if no_change_count >= 5:
-                print(f"Reached absolute end after {scroll_count} scrolls")
+            if no_change_count >= 3:  # Reduced from 5 to 3
+                print(f"Reached end after {scroll_count} scrolls")
                 if callback:
                     callback("scroll_complete", {"count": scroll_count})
                 break
@@ -102,6 +123,12 @@ def scroll_results(driver, scrollable_div, callback=None):
             print(f"Scrolled {scroll_count} times, still loading...")
             if callback:
                 callback("scrolling", {"count": scroll_count})
+    
+    # If we hit max scrolls, log it
+    if scroll_count >= max_scrolls:
+        print(f"Reached max scroll limit ({max_scrolls}) to save memory")
+        if callback:
+            callback("scroll_complete", {"count": scroll_count, "message": f"Stopped at {max_scrolls} scrolls (memory limit)"})
     
     return scroll_count
 
@@ -351,9 +378,10 @@ def scrape_maps_with_progress(query, callback=None, fast_mode=True, detail_limit
             return []
         
         if callback:
-            callback("scrolling", {"count": 0, "message": "Scrolling to load all results..."})
+            callback("scrolling", {"count": 0, "message": "Scrolling to load results..."})
         scrollable_div = driver.find_element(By.CSS_SELECTOR, "div[role='feed']")
-        scroll_results(driver, scrollable_div, callback)
+        # Limit scrolls to 12 to stay under 512MB memory on Render
+        scroll_results(driver, scrollable_div, callback, max_scrolls=12)
         
         # Count total listings
         listings = driver.find_elements(By.CSS_SELECTOR, "div[role='feed'] > div > div > a")
@@ -435,7 +463,12 @@ def scrape_maps_with_progress(query, callback=None, fast_mode=True, detail_limit
         if callback:
             callback("error", {"message": str(e)})
     finally:
-        driver.quit()
+        try:
+            driver.quit()
+        except:
+            pass
+        # Force garbage collection to free memory
+        gc.collect()
         if callback:
             callback("browser_closed", {"message": "Browser closed"})
     

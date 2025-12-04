@@ -93,8 +93,8 @@ def run_scraper(job_id: str, query: str):
     try:
         callback = lambda event, data: progress_callback(job_id, event, data)
         # Use fast_mode=True for cloud deployment (extracts from list view)
-        # detail_limit=15 means we'll get phone/website for first 15 businesses
-        results = scrape_maps_with_progress(query, callback, fast_mode=True, detail_limit=15)
+        # detail_limit=5 to save memory on 512MB Render instances
+        results = scrape_maps_with_progress(query, callback, fast_mode=True, detail_limit=5)
         
         if results:
             results = deduplicate_results(results)
